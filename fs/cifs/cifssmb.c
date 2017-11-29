@@ -715,6 +715,9 @@ CIFSSMBEcho(struct TCP_Server_Info *server)
 	if (rc)
 		return rc;
 
+	if (server->capabilities & CAP_UNICODE)
+		smb->hdr.Flags2 |= SMBFLG2_UNICODE;
+
 	/* set up echo request */
 	smb->hdr.Tid = 0xffff;
 	smb->hdr.WordCount = 1;
@@ -1454,6 +1457,13 @@ cifs_readv_receive(struct TCP_Server_Info *server, struct mid_q_entry *mid)
 	if (length < 0)
 		return length;
 	server->total_read += length;
+
+	if (server->ops->is_session_expired &&
+	    server->ops->is_session_expired(buf)) {
+		cifs_reconnect(server);
+		wake_up(&server->response_q);
+		return -1;
+	}
 
 	if (server->ops->is_status_pending &&
 	    server->ops->is_status_pending(buf, server, 0)) {
